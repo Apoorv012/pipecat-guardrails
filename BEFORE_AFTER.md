@@ -121,7 +121,7 @@ from pipecat.classifiers.llm.classifier import LLMClassifier
 from pipecat.classifiers.typesafe.jev.classifier import JevClassifier
 from pipecat.services.openai.llm import OpenAILLMService
 from pipecat_guardrails import Guard
-from pipecat_guardrails.rails import BannedTerms
+from pipecat_guardrails.rules import BannedTerms
 from pipecat_guardrails.pipecat import OutputGuardProcessor
 
 guard = Guard(

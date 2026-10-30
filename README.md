@@ -3,8 +3,56 @@
 Output guardrails for [Pipecat](https://github.com/pipecat-ai/pipecat) voice agents. It checks what
 your bot is about to say, and stops it before it is spoken.
 
-> **Status: early development.** Version 0.0.1 contains the package structure only, with no
-> guardrails yet. Follow the repo for the first usable release (0.1.0).
+> **Status: early development.** The rule layer (banned terms, regex, personal data, India
+> pack) and `guard.check()` are built. The Pipecat processor, classifier and LLM judge are
+> next. See [PLAN.md](https://github.com/Apoorv012/pipecat-guardrails/blob/main/PLAN.md).
+
+## Quick start
+
+Everything is opt-in: the guard only runs the rules you give it.
+
+```python
+from pipecat_guardrails import Guard
+from pipecat_guardrails.packs import india
+from pipecat_guardrails.rules import PII, BannedTerms, pii
+
+guard = Guard(
+    rules=[
+        BannedTerms(["acme corp", "globex"], id="no-competitors"),
+        BannedTerms(
+            ["dawai band kar do", "chinta mat"],
+            id="no-medical-advice",
+            word_pattern=india.hinglish_word_pattern,   # also matches "davai", "cheenta", ...
+            variants={"dawai": ["दवाई"]},
+        ),
+        PII(pii.email(), pii.card(), india.aadhaar(), india.phone(), id="pii"),  # redacts
+    ],
+    fallback="Sorry, I can't help with that.",
+)
+
+verdict = await guard.check("Aap davaai band kar do.")
+verdict.blocked     # True
+verdict.text        # "Sorry, I can't help with that."
+verdict.rule_ids    # ("no-medical-advice",)
+```
+
+- **Actions:** each rule can `block` (speak the fallback instead), `redact` (replace the match,
+  e.g. `[phone number]`), or `flag` (report only).
+- **Opt out:** pass `enabled=False` to a rule, or call `guard.disable("pii")` at runtime.
+- **Shadow mode:** `Guard(..., mode="shadow")` reports what it would do without changing
+  anything, so you can try new rules on live traffic.
+- **Errors:** a rule that crashes fails closed (blocks) by default. Use `on_error="allow"` to
+  fail open instead.
+- **Custom rules:** any function works:
+  ```python
+  @rule(id="no-urls")
+  def no_urls(text: str) -> bool:
+      return "http" in text
+  ```
+
+Runnable examples, the same health bot in two languages:
+[`examples/whole_reply_english.py`](examples/whole_reply_english.py) and
+[`examples/whole_reply_hinglish.py`](examples/whole_reply_hinglish.py).
 
 ## The problem
 
