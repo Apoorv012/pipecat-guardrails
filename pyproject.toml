@@ -46,6 +46,7 @@ dev = [
     "ruff>=0.8",
     "pyright>=1.1.390",
     "pre-commit>=4",
+    "hypothesis>=6.100",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -68,6 +69,7 @@ convention = "google"
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["D"]
+"examples/**" = ["D"]
 
 [tool.pyright]
 include = ["src", "tests"]

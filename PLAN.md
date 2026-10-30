@@ -26,7 +26,7 @@ and get correct, low-latency, observable enforcement that works across Pipecat r
 from pipecat.classifiers.llm.classifier import LLMClassifier
 from pipecat.services.openai.llm import OpenAILLMService
 from pipecat_guardrails import Guard
-from pipecat_guardrails.rails import BannedTerms, PII
+from pipecat_guardrails.rules import BannedTerms, PII
 from pipecat_guardrails.pipecat import OutputGuardProcessor
 
 guard = Guard(
@@ -158,7 +158,7 @@ src/pipecat_guardrails/
   __init__.py            Guard, Verdict, Violation, Action, re-exports
   types.py               Verdict, Violation, Action(ALLOW|REDACT|BLOCK|FLAG), CheckContext
   guard.py               Guard: rules → classifier → judge cascade, mode and fail policy
-  rails/
+  rules/
     base.py              Rule protocol + @rule decorator for plain functions
     terms.py             BannedTerms: Unicode-normalised, word-boundary, variant lists
     regex.py             Regex
@@ -180,15 +180,15 @@ src/pipecat_guardrails/
 ### Core contracts
 
 ```python
-class Rule(Protocol):                        # layer 1; local and synchronous-fast
-    id: str
-    def check(self, text: str, ctx: CheckContext) -> RuleResult: ...
+class Rule(ABC):                             # layer 1; local and synchronous-fast
+    id: str; action: Action; enabled: bool   # every rule is opt-in and can be switched off
+    def find(self, text: str, context: CheckContext) -> Iterable[Match]: ...
 
 # Layers 2 and 3 are any pipecat.classifiers.base_classifier.BaseClassifier.
 
 @dataclass(frozen=True)
 class Verdict:
-    action: Action                           # most severe action across rails
+    action: Action                           # most severe action across rules
     text: str                                # original, or redacted when action is REDACT
     violations: tuple[Violation, ...]        # rail_id, reason, span, score, action
     latency_ms: dict[str, float]             # per rail
@@ -218,7 +218,7 @@ report.
 
 | Strategy | What happens | Added latency | Guarantee |
 |---|---|---|---|
-| `"sentence"` (default) | Buffer to a sentence boundary, check, release. Sentence N+1 is checked while N is being spoken | Fast rails: ~0. Judge: one round trip on the first sentence only | Nothing unapproved is ever spoken |
+| `"sentence"` (default) | Buffer to a sentence boundary, check, release. Sentence N+1 is checked while N is being spoken | Rules: ~0.2 ms. Judge: one round trip on the first sentence only | Nothing unapproved is ever spoken |
 | `"full_reply"` | Buffer the whole reply, check once, then release it sentence by sentence | Whole LLM generation + check | Nothing unapproved is spoken, and a block replaces the entire reply |
 | `"optimistic"` *(experimental, later)* | Speak right away, judge in the background, cut audio on a violation | None | Weaker: a fragment may be heard and needs context repair (section 2, finding 3) |
 
@@ -329,7 +329,11 @@ is a no"). Each judge call can include recent turns (`CheckContext.history`) in 
   decimals, times or known abbreviations; it handles text streamed one character at a time.
 - Frame-level tests with `pipecat.tests.utils.run_test` for every row of the frame table and every
   violation path.
-- Latency test: fast rails under 1 ms p95 per sentence on a CI runner.
+- Latency test: rules under 1 ms p95 per sentence (measured 0.33 ms p95 with 38 terms plus all
+  PII recognizers). CI uses a generous 5 ms budget to catch large regressions only.
+- Sentence splitting is our own rule-based splitter, not Pipecat's `match_endofsentence`
+  (sentencex) or spaCy. Pipecat's splits `"Take 2."` before `".5 mg"` arrives and cuts after
+  `"Tab."`/`"Smt."`. spaCy needs whole text, is heavy, and has no trained Hindi pipeline.
 - Matrix: Python 3.11–3.13 × Pipecat {1.12, latest}, plus a **nightly job against Pipecat `main`**,
   which warns early about breaking changes (the community guide says to expect them).
 - End-to-end: the foundational example runs under `pipecat eval run` with a scripted user, mocked
