@@ -3,13 +3,55 @@
 Output guardrails for [Pipecat](https://github.com/pipecat-ai/pipecat) voice agents. It checks what
 your bot is about to say, and stops it before it is spoken.
 
-> **Status: early development.** The rule layer (banned terms, regex, personal data, India
-> pack) and `guard.check()` are built. The Pipecat processor, classifier and LLM judge are
-> next. See [PLAN.md](https://github.com/Apoorv012/pipecat-guardrails/blob/main/PLAN.md).
+> **Status: early development.** Built: the rule layer (banned terms, regex, personal data,
+> India pack), `guard.check()`, and the Pipecat processor. Next: the classifier and LLM-judge
+> layers. See [PLAN.md](https://github.com/Apoorv012/pipecat-guardrails/blob/main/PLAN.md).
 
-## Quick start
+## In a Pipecat pipeline
 
-Everything is opt-in: the guard only runs the rules you give it.
+Put `OutputGuardProcessor` between the LLM and the TTS. That is the only change to your bot.
+
+```python
+from pipecat_guardrails import Guard
+from pipecat_guardrails.pipecat import OutputGuardProcessor
+from pipecat_guardrails.rules import PII, BannedTerms, pii
+
+guard = Guard(
+    rules=[
+        BannedTerms(["acme corp"], id="no-competitors"),
+        PII(pii.email(), pii.phone(), id="pii"),
+    ],
+    fallback="Sorry, I can only help with our own products.",
+)
+
+pipeline = Pipeline([
+    transport.input(), stt, context_aggregator.user(), llm,
+    OutputGuardProcessor(guard),   # checks each sentence before it is spoken
+    tts, transport.output(), context_aggregator.assistant(),
+])
+```
+
+- Each sentence is checked before the TTS gets it, so nothing unchecked is spoken.
+- On a block, the rest of the reply is dropped and the fallback is spoken instead. Blocked text
+  never reaches the TTS, so it never enters the conversation history either.
+- User interruptions, function calls and lines your own code speaks (`TTSSpeakFrame`) are
+  handled and pass through in order.
+- `OutputGuardProcessor(guard, strategy="full_reply")` checks the whole reply before speaking
+  any of it: safer for rules that need the full reply, at the cost of latency.
+- Events: `@processor.event_handler("on_violation")` and `"on_check"`.
+
+> **Using RTVI (a Pipecat client SDK)?** By default Pipecat sends every LLM token to the client
+> app *before* the guard checks it. Pass
+> `rtvi_observer_params=guarded_rtvi_observer_params()` (from `pipecat_guardrails.pipecat`) to
+> `PipelineWorker` to turn that off.
+
+Try it without API keys: `uv run python examples/pipeline_demo.py`. A full voice bot is in
+[`examples/pipecat_bot.py`](examples/pipecat_bot.py).
+
+## Without Pipecat's LLM loop
+
+If your app runs its own LLM loop, check whole replies directly. Everything is opt-in: the
+guard only runs the rules you give it.
 
 ```python
 from pipecat_guardrails import Guard
@@ -54,23 +96,11 @@ Runnable examples, the same health bot in two languages:
 [`examples/whole_reply_english.py`](examples/whole_reply_english.py) and
 [`examples/whole_reply_hinglish.py`](examples/whole_reply_hinglish.py).
 
-## The problem
+## Why
 
 Pipecat has no built-in output guardrail, so every team writes its own processor between the LLM
 and the TTS. These homemade processors tend to break on user interruptions, keep speaking after a
 violation, let blocked text into the LLM history, and miss paraphrases and Hindi/Hinglish text.
-
-This package will provide one processor you add to your pipeline:
-
-```python
-pipeline = Pipeline([
-    transport.input(), stt, context_aggregator.user(), llm,
-    OutputGuardProcessor(guard),   # checks each sentence before it is spoken
-    tts, transport.output(), context_aggregator.assistant(),
-])
-```
-
-There will also be a plain `await guard.check(text)` for apps that run their own LLM loop.
 
 See [BEFORE_AFTER.md](https://github.com/Apoorv012/pipecat-guardrails/blob/main/BEFORE_AFTER.md)
 for a side-by-side comparison and

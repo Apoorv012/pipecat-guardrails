@@ -6,6 +6,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+- `OutputGuardProcessor`: a Pipecat processor that sits between the LLM and the TTS and checks
+  each sentence before it is spoken. Allowed sentences pass, redacted ones are spoken with the
+  matches replaced, and a block drops the rest of the reply and speaks the guard's fallback.
+  Blocked text never reaches the TTS, so it never enters the conversation history.
+- `strategy="full_reply"`: hold the whole reply, check it once, then speak it.
+- Handles user interruptions, keeps non-text frames (function calls, scripted `TTSSpeakFrame`s)
+  in order, checks `LLMTextProcessor` output as units, and skips expressive sound/pause units.
+- `on_violation` and `on_check` events.
+- `guarded_rtvi_observer_params()`: RTVI settings that stop raw, unchecked LLM text from being
+  sent to client apps.
+- Examples: `examples/pipeline_demo.py` (runs offline, no API keys) and `examples/pipecat_bot.py`
+  (a full voice bot).
+
 ## [0.1.0] - 2026-10-31
 
 First usable release: the rule layer and `Guard.check()`. The Pipecat processor and the

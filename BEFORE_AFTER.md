@@ -43,7 +43,9 @@ async def main():
         tts, transport.output(),              # text -> audio -> speakers
         agg.assistant(),                      # what was spoken -> added to history
     ])
-    await WorkerRunner().run(PipelineWorker(pipeline))
+    runner = WorkerRunner()
+    await runner.add_workers(PipelineWorker(pipeline))
+    await runner.run()
 
 asyncio.run(main())
 ```

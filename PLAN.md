@@ -236,31 +236,35 @@ report.
 | Any upstream frame | Forward untouched |
 | `EndFrame` / `CancelFrame` | Cancel background tasks and forward the frame |
 
-Ordering rule: a non-text frame that arrives while a sentence is being checked is held and released
-**after** that sentence, so frame order downstream matches the order the LLM produced.
+Ordering rule (built in milestone 2): when a non-text frame arrives while text is held, the held
+text is checked and passed on first, so frame order downstream matches the order the LLM produced.
+In `full_reply`, non-text frames are held with the reply and released in their original positions;
+on a block the fallback takes the place of the first text and function-call frames still pass.
 
-### When a sentence is blocked (strategy `sentence`)
+### When a sentence is blocked (strategy `sentence`, as built)
 
 1. Stop releasing text for this reply. Drop the rest of the reply's text until `LLMFullResponseEndFrame`.
-2. Sentences approved earlier keep playing (`on_block="finish_approved"`, the default), or
-   `on_block="cut"` calls `broadcast_interruption()` to flush them too.
-3. Stop the LLM. **Open question:** draining a short reply is simpler and has no interruption side
-   effects. `cancel_llm=True` uses the interruption path. Decide after a frame test
-   (section 9, decision 3).
+2. Sentences approved earlier keep playing (they were checked).
+3. The LLM is not interrupted: the rest of the reply is drained and discarded. Replies are short,
+   and this avoids interruption side effects (decision 3).
 4. Emit the fallback line as one more `AggregatedTextFrame` sentence inside the same reply. The
-   history then reads "approved part + fallback" as one assistant message. Options: `fallback=None`
-   (silence), a string, or a callable `(verdict, ctx) -> str` for per-rule or per-language lines.
+   history then reads "approved part + fallback" as one assistant message. `fallback=None` means
+   silence; a callable `(verdict) -> str` picks per-rule or per-language lines.
 5. The blocked text never reaches the TTS, so it never enters the history (section 2, finding 1).
-   Option `context_note=True` appends a short system note so the LLM knows its last reply was
-   withheld, which stops it from repeating the same content.
-6. Fire `on_violation(processor, verdict)` and the log/metrics hooks.
+6. Fire `on_violation(processor, verdict)` and `on_check`.
+
+Deferred: `on_block="cut"` (flush approved sentences too) and `context_note=True` (tell the LLM its
+reply was withheld). Add them if real use asks for them.
 
 REDACT replaces the matched span (`"call me at [phone number]"`) and releases the sentence. It never
 interrupts. FLAG releases unchanged and only fires the event.
 
 ### Coexisting with other processors
 - Default position: directly before the TTS, so the guard checks the text that will be spoken.
-- Expression tags (1.15 `expressive`) are stripped for checking only. The forwarded text keeps them.
+- Expressive sound and pause units (1.15 `expressive`) pass through unchecked. Tags inside text
+  are not stripped yet; rules aren't affected by them. Revisit for the LLM judge (milestone 3).
+- Speech-to-speech (realtime) LLMs are out of scope: they produce audio directly, so there is no
+  text to check before it is spoken.
 - One integration test per known neighbour: `LLMTextProcessor`, `PipecatToneTagger`, a function-calling
   LLM, an interruption mid-check.
 
@@ -375,15 +379,15 @@ command and a labelled set that a native speaker has reviewed.
 
 ---
 
-## 9. Open decisions
+## 9. Decisions
 
-1. **Default for a mid-reply block:** let approved sentences finish and add the fallback (proposed), or
-   cut everything and play only the fallback?
-2. **Fallback in history:** should the fallback line be recorded in the LLM context? Proposed: yes,
-   because the user heard it.
-3. **Stopping the LLM on block:** drain the rest of the reply (simple, no interruption side effects) or
-   `broadcast_interruption()`? To be decided by a frame test in milestone 2.
-4. **Minimum Pipecat version:** 1.12 (VoiceMitra's) is proposed. It costs nothing extra so far.
-5. **Package name:** `pipecat-guardrails` was free on 2026-10-30. Reserve it in milestone 0.
+Settled:
+1. **Mid-reply block:** approved sentences finish, then the fallback plays. (Milestone 2.)
+2. **Fallback in history:** yes. It is spoken by the TTS, so Pipecat records it like any reply.
+3. **Stopping the LLM on block:** drain and discard the rest of the reply; no interruption.
+4. **Minimum Pipecat version:** 1.12, tested in CI with the oldest allowed dependencies.
+5. **Package name:** `pipecat-guardrails`, published (0.0.1, 0.1.0).
+
+Open:
 6. **Who maintains it:** the community listing requires tracking Pipecat releases. The nightly CI job
    makes that cheap, but someone has to act on its failures.
