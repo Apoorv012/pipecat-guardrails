@@ -6,6 +6,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-31
+
+First usable release: the rule layer and `Guard.check()`. The Pipecat processor and the
+classifier / LLM-judge layers come in later releases.
+
 ### Added
 - `Guard.check()`: checks text against the configured rules and returns a `Verdict` with the
   action (allow, flag, redact, block), the text to speak, violations, errors and per-rule latency.
@@ -27,5 +32,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Added
 - Package structure, CI and release workflow. No guardrail functionality yet.
 
-[Unreleased]: https://github.com/Apoorv012/pipecat-guardrails/compare/v0.0.1...HEAD
+[Unreleased]: https://github.com/Apoorv012/pipecat-guardrails/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/Apoorv012/pipecat-guardrails/compare/v0.0.1...v0.1.0
 [0.0.1]: https://github.com/Apoorv012/pipecat-guardrails/releases/tag/v0.0.1

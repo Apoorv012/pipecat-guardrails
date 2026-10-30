@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pipecat-guardrails"
-version = "0.0.1"
+version = "0.1.0"
 description = "Output guardrails for Pipecat voice agents: check what the bot is about to say, and stop it before it is spoken."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -13,7 +13,7 @@ license-files = ["LICENSE"]
 authors = [{ name = "Apoorv Mittal" }]
 keywords = ["pipecat", "guardrails", "voice", "llm", "safety", "moderation", "tts"]
 classifiers = [
-    "Development Status :: 2 - Pre-Alpha",
+    "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",

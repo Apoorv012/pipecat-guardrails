@@ -1701,7 +1701,7 @@ jev = [
 
 [[package]]
 name = "pipecat-guardrails"
-version = "0.0.1"
+version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "pipecat-ai" },
