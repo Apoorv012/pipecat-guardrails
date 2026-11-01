@@ -1,8 +1,11 @@
 """Frame-level tests for OutputGuardProcessor, using Pipecat's own test runner."""
 
+import time
 from collections.abc import Sequence
+from typing import Any
 
 import pytest
+from fakes import FakeClassifier
 from pipecat.frames.frames import (
     AggregatedTextFrame,
     Frame,
@@ -333,3 +336,179 @@ def test_guarded_rtvi_params_turn_off_raw_llm_text():
     assert params.bot_llm_enabled is False
     assert getattr(params, "llm_raw_text_enabled", False) is False
     assert params.bot_tts_enabled is True
+
+
+# --- concurrent checks with a slow judge (sentence strategy) -----------------------------
+
+
+def judged(judge: FakeClassifier, **kwargs: Any) -> Guard:
+    return Guard(policies={"bad": "Is it bad?"}, judge=judge, fallback=FALLBACK, **kwargs)
+
+
+def says_bad(state: Any, name: str) -> float:
+    return 0.9 if "bad" in str(state).lower() else 0.1
+
+
+async def test_sentences_are_checked_concurrently_and_released_in_order():
+    # The first sentence is the slowest to check, but still comes out first.
+    delays = {"One.": 0.15, "Two.": 0.01, "Three.": 0.05}
+    judge = FakeClassifier(delay=lambda state: delays[state])
+    start = time.perf_counter()
+    down = await run(OutputGuardProcessor(judged(judge)), reply("One. Two. Three."))
+    elapsed = time.perf_counter() - start
+    assert spoken(down) == ["One.", "Two.", "Three."]
+    assert judge.max_in_flight == 3
+    assert elapsed < sum(delays.values()) + 0.1
+
+
+async def test_events_fire_in_sentence_order():
+    judge = FakeClassifier(delay=lambda state: 0.1 if state == "One." else 0.0)
+    processor = OutputGuardProcessor(judged(judge))
+    checked: list[str] = []
+
+    @processor.event_handler("on_check")
+    async def on_check(proc: OutputGuardProcessor, verdict: Verdict) -> None:  # pyright: ignore[reportUnusedFunction]
+        checked.append(verdict.original_text)
+
+    await run(processor, reply("One. Two."))
+    assert checked == ["One.", "Two."]
+
+
+async def test_block_cancels_checks_for_the_rest_of_the_reply():
+    judge = FakeClassifier(judge=says_bad, delay=lambda state: 0.1 if state == "Later." else 0.02)
+    processor = OutputGuardProcessor(judged(judge))
+    checked: list[str] = []
+
+    @processor.event_handler("on_check")
+    async def on_check(proc: OutputGuardProcessor, verdict: Verdict) -> None:  # pyright: ignore[reportUnusedFunction]
+        checked.append(verdict.original_text)
+
+    down = await run(processor, reply("Fine. Bad idea. Later."))
+    assert spoken(down) == ["Fine.", FALLBACK]
+    assert checked == ["Fine.", "Bad idea."]
+    assert isinstance(down[-1], LLMFullResponseEndFrame)
+
+
+async def test_reply_after_a_block_is_checked_normally_with_a_judge():
+    judge = FakeClassifier(judge=says_bad, delay=0.02)
+    frames = reply("Bad. Dropped.") + reply("Hello again.")
+    down = await run(OutputGuardProcessor(judged(judge)), frames)
+    assert spoken(down) == [FALLBACK, "Hello again."]
+
+
+async def test_frames_wait_for_earlier_checks():
+    judge = FakeClassifier(delay=0.05)
+    call = call_frame()
+    frames = [LLMFullResponseStartFrame(), LLMTextFrame("Let me check. "), call]
+    frames += [LLMTextFrame("Done."), LLMFullResponseEndFrame()]
+    down = await run(OutputGuardProcessor(judged(judge)), frames)
+    assert [type(f) for f in down] == [
+        LLMFullResponseStartFrame,
+        AggregatedTextFrame,
+        FunctionCallInProgressFrame,
+        AggregatedTextFrame,
+        LLMFullResponseEndFrame,
+    ]
+
+
+async def test_interruption_cancels_pending_checks():
+    judge = FakeClassifier(delay=0.2)
+    call = call_frame()
+    frames = [LLMFullResponseStartFrame(), LLMTextFrame("Slow one. "), call]
+    frames += [SleepFrame(sleep=0.05), InterruptionFrame(), SleepFrame(sleep=0.05)]
+    frames += reply("New reply.")
+    processor = OutputGuardProcessor(judged(judge))
+    start = time.perf_counter()
+    down = await run(processor, frames)
+    assert spoken(down) == ["New reply."]
+    assert call in down  # uninterruptible, so it survives
+    assert time.perf_counter() - start < 1.0
+
+
+async def test_unspoken_text_is_checked_in_order_with_a_judge():
+    judge = FakeClassifier(judge=says_bad, delay=0.02)
+    frames = [*reply("Hello."), unspoken("Bad note."), unspoken("Good note.")]
+    down = await run(OutputGuardProcessor(judged(judge)), frames)
+    texts = [f.text for f in down if isinstance(f, TextFrame)]
+    assert texts == ["Hello.", "Good note."]
+
+
+async def test_judge_failure_blocks_with_fallback():
+    judge = FakeClassifier(error=RuntimeError("down"))
+    down = await run(OutputGuardProcessor(judged(judge)), reply("Hello. There."))
+    assert spoken(down) == [FALLBACK]
+
+
+async def test_text_after_a_block_is_not_checked():
+    judge = FakeClassifier(judge=says_bad)
+    # "Bad one." is complete as soon as "Mo" arrives, so it is blocked during the pause.
+    frames = [LLMFullResponseStartFrame(), LLMTextFrame("Bad one. Mo"), SleepFrame(sleep=0.05)]
+    frames += [LLMTextFrame("re text. "), LLMTextFrame("And more."), LLMFullResponseEndFrame()]
+    down = await run(OutputGuardProcessor(judged(judge)), frames)
+    assert spoken(down) == [FALLBACK]
+    assert [state for state, _ in judge.calls] == ["Bad one."]
+
+
+async def test_full_reply_checks_unspoken_text():
+    frames = [unspoken("Try Acme Corp."), unspoken("Mail a@b.com"), unspoken("Fine.")]
+    down = await run(OutputGuardProcessor(make_guard(), strategy="full_reply"), frames)
+    assert [f.text for f in down if type(f) is TextFrame] == ["Mail [email]", "Fine."]
+
+
+def broken_fallback(verdict: Verdict) -> str:
+    raise RuntimeError("bug in the fallback function")
+
+
+@pytest.mark.parametrize("strategy", ["sentence", "full_reply"])
+async def test_crashing_check_fails_closed(strategy: Any):
+    guard = Guard([BannedTerms(["acme corp"], id="no-competitors")], fallback=broken_fallback)
+    frames = reply("Try Acme Corp.") + reply("Hello.")
+    down = await run(OutputGuardProcessor(guard, strategy=strategy), frames)
+    assert spoken(down) == ["Hello."]
+
+
+async def test_crashing_check_can_fail_open():
+    guard = Guard(
+        [BannedTerms(["acme corp"], id="no-competitors")],
+        fallback=broken_fallback,
+        on_error="allow",
+    )
+    down = await run(OutputGuardProcessor(guard), reply("Try Acme Corp."))
+    assert spoken(down) == ["Try Acme Corp."]
+
+
+async def test_parallel_checks_are_capped_as_a_sliding_window():
+    judge = FakeClassifier(delay=0.05)
+    sentences = [f"Sentence {i}." for i in range(8)]
+    processor = OutputGuardProcessor(judged(judge), max_parallel_checks=3)
+    down = await run(processor, reply(" ".join(sentences)))
+    assert spoken(down) == sentences
+    assert judge.max_in_flight == 3
+    assert [state for state, _ in judge.calls] == sentences  # started in order
+
+
+async def test_default_cap_is_five():
+    judge = FakeClassifier(delay=0.05)
+    sentences = [f"Sentence {i}." for i in range(8)]
+    await run(OutputGuardProcessor(judged(judge)), reply(" ".join(sentences)))
+    assert judge.max_in_flight == 5
+
+
+async def test_one_check_at_a_time():
+    judge = FakeClassifier(delay=0.01)
+    await run(OutputGuardProcessor(judged(judge), max_parallel_checks=1), reply("A. B. C."))
+    assert judge.max_in_flight == 1
+
+
+async def test_block_cancels_waiting_checks_before_they_call_the_judge():
+    judge = FakeClassifier(judge=says_bad, delay=0.05)
+    sentences = ["Bad start."] + [f"Sentence {i}." for i in range(6)]
+    processor = OutputGuardProcessor(judged(judge), max_parallel_checks=2)
+    down = await run(processor, reply(" ".join(sentences)))
+    assert spoken(down) == [FALLBACK]
+    assert len(judge.calls) == 2  # only the first window was ever sent
+
+
+def test_invalid_max_parallel_checks():
+    with pytest.raises(ValueError, match="max_parallel_checks"):
+        OutputGuardProcessor(make_guard(), max_parallel_checks=0)

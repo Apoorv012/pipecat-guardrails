@@ -1,7 +1,7 @@
 """Output guardrails for Pipecat voice agents.
 
 Checks what a voice agent is about to say and stops it before it is spoken. Every check is
-opt-in: configure only the rules you want.
+opt-in: configure only the rules and policies you want.
 
 Example::
 
@@ -18,6 +18,7 @@ Example::
 from importlib.metadata import PackageNotFoundError, version
 
 from pipecat_guardrails.guard import Guard
+from pipecat_guardrails.policies import Policy
 from pipecat_guardrails.types import (
     Action,
     CheckContext,
@@ -36,6 +37,7 @@ __all__ = [
     "CheckContext",
     "CheckError",
     "Guard",
+    "Policy",
     "Verdict",
     "Violation",
     "__version__",

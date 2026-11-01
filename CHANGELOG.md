@@ -6,6 +6,46 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-02
+
+Policies, answered by a classifier and an LLM judge, and an eval command to measure them.
+
+### Added
+- Policies: rules written as yes/no questions (`Guard(policies={"id": "Does this reply ...?"})`,
+  or `Policy(...)` with examples of what counts as yes and no, thresholds, an action and an
+  error policy). They catch what word lists miss: paraphrases, Hinglish, and safe sentences
+  that happen to contain a banned word.
+- The rules → classifier → judge cascade. `classifier=` (layer 2, e.g. TypeSafe Jev) answers
+  every policy in one call and decides when it is sure; `judge=` (layer 3, any LLM through
+  Pipecat's `LLMClassifier`) decides the rest. Either one can be used alone. Both take any
+  Pipecat classifier.
+- The classifier and judge see the redacted text, plus the last few turns of
+  `CheckContext.history` (`history_turns=4`). Per-layer timeouts (`classifier_timeout=2.0`,
+  `judge_timeout=5.0`); failures follow `on_error`, and a classifier failure goes to the judge.
+- `OutputGuardProcessor` checks sentences concurrently and still releases them in order, so
+  usually only the first sentence of a reply waits for a classifier or judge round trip.
+  `max_parallel_checks` (default 5) caps how many run at once, as a sliding window: a
+  sentence holds its slot until it is released, so after a block the checks still waiting
+  are cancelled before they call the classifier or judge.
+- `pipecat-guardrails eval data.jsonl --guard module:name`: precision, recall and F1 per label,
+  latency per check and per layer, error rate, and the list of mistakes. Compare several
+  guards at once, `--repeat`, `--json`, and `--diff` against a saved report to catch
+  regressions in CI.
+- A sample dataset and four guards (rules only, rules + Jev, rules + LLM judge, all three) in
+  `examples/eval/`.
+- Results on the sample in `docs/eval/`: adding the Jev classifier to the rules raised F1 from
+  0.70 to 0.96 (recall 0.58 → 1.00) at about 310 ms per check.
+- `Violation.layer` and `CheckError.layer` say which layer decided or failed;
+  `CheckError.escalated` marks a classifier failure that went on to the judge.
+- `Guard.enable()` / `Guard.disable()` also take policy ids; new `Guard.policies` and
+  `Guard.policy()`.
+
+### Changed
+- `on_check` and `on_violation` fire when a sentence is released, in sentence order. A
+  sentence dropped because an earlier one was blocked no longer fires them.
+- If a check itself crashes (for example, a fallback function that raises), the processor
+  now follows the guard's `on_error` instead of stopping.
+
 ## [0.2.1] - 2026-11-01
 
 ### Fixed
@@ -60,7 +100,8 @@ classifier / LLM-judge layers come in later releases.
 ### Added
 - Package structure, CI and release workflow. No guardrail functionality yet.
 
-[Unreleased]: https://github.com/Apoorv012/pipecat-guardrails/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/Apoorv012/pipecat-guardrails/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/Apoorv012/pipecat-guardrails/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/Apoorv012/pipecat-guardrails/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/Apoorv012/pipecat-guardrails/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Apoorv012/pipecat-guardrails/compare/v0.0.1...v0.1.0
