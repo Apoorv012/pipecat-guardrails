@@ -6,6 +6,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-01
+
+### Fixed
+- `strategy="full_reply"`: a user interruption while a reply was held also threw away the
+  function-call frames held with it. Pipecat marks those frames uninterruptible, and losing them
+  left the function call out of the conversation history. They are now passed on.
+- A plain `TextFrame` with `skip_tts=True` passed through unchecked. It is not spoken but can
+  still reach the conversation history and the client app, so it is now checked: dropped if
+  blocked, redacted if a rule redacts.
+
 ## [0.2.0] - 2026-10-31
 
 The Pipecat processor: put one line between the LLM and the TTS.
@@ -50,7 +60,8 @@ classifier / LLM-judge layers come in later releases.
 ### Added
 - Package structure, CI and release workflow. No guardrail functionality yet.
 
-[Unreleased]: https://github.com/Apoorv012/pipecat-guardrails/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/Apoorv012/pipecat-guardrails/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/Apoorv012/pipecat-guardrails/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/Apoorv012/pipecat-guardrails/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Apoorv012/pipecat-guardrails/compare/v0.0.1...v0.1.0
 [0.0.1]: https://github.com/Apoorv012/pipecat-guardrails/releases/tag/v0.0.1

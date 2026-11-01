@@ -386,7 +386,7 @@ Settled:
 2. **Fallback in history:** yes. It is spoken by the TTS, so Pipecat records it like any reply.
 3. **Stopping the LLM on block:** drain and discard the rest of the reply; no interruption.
 4. **Minimum Pipecat version:** 1.12, tested in CI with the oldest allowed dependencies.
-5. **Package name:** `pipecat-guardrails`, published (0.0.1, 0.1.0).
+5. **Package name:** `pipecat-guardrails`, published (0.0.1, 0.1.0, 0.2.0).
 
 Open:
 6. **Who maintains it:** the community listing requires tracking Pipecat releases. The nightly CI job

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pipecat-guardrails"
-version = "0.2.0"
+version = "0.2.1"
 description = "Output guardrails for Pipecat voice agents: check what the bot is about to say, and stop it before it is spoken."
 readme = "README.md"
 requires-python = ">=3.11"

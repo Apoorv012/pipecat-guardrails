@@ -18,6 +18,7 @@ from pipecat.frames.frames import (
     LLMFullResponseStartFrame,
     LLMTextFrame,
     SystemFrame,
+    TextFrame,
     TTSTextFrame,
 )
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
@@ -82,6 +83,9 @@ class OutputGuardProcessor(FrameProcessor):
     If an ``LLMTextProcessor`` runs before this processor, its ``AggregatedTextFrame``s
     are checked as units instead of being split again.
 
+    A plain ``TextFrame`` with ``skip_tts=True`` is not spoken, but it can still reach the
+    conversation history and the client app, so it is checked too and dropped if blocked.
+
     Events:
         on_violation(processor, verdict): a rule fired. Also fires in shadow mode.
         on_check(processor, verdict): every check, including allowed ones.
@@ -135,8 +139,17 @@ class OutputGuardProcessor(FrameProcessor):
         await super().process_frame(frame, direction)
 
         if isinstance(frame, InterruptionFrame):
+            # Frames Pipecat marks uninterruptible (function-call progress and results)
+            # must survive an interruption, or the context misses the function call.
+            kept = [
+                h.frame
+                for h in self._held
+                if isinstance(h, _PassThrough) and not getattr(h.frame, "interruptible", True)
+            ]
             self._reset()
             await self.push_frame(frame, direction)
+            for held in kept:
+                await self.push_frame(held)
         elif direction is FrameDirection.UPSTREAM:
             await self.push_frame(frame, direction)
         elif isinstance(frame, LLMFullResponseStartFrame):
@@ -147,6 +160,8 @@ class OutputGuardProcessor(FrameProcessor):
             await self._handle_llm_text(frame)
         elif isinstance(frame, AggregatedTextFrame) and not isinstance(frame, TTSTextFrame):
             await self._handle_unit(frame)
+        elif type(frame) is TextFrame and frame.skip_tts:
+            await self._handle_unspoken_text(frame)
         elif isinstance(frame, LLMFullResponseEndFrame):
             await self._flush()
             self._reset()
@@ -184,6 +199,20 @@ class OutputGuardProcessor(FrameProcessor):
             self._held.append(frame)
             return
         await self._check_and_push(frame.text, frame)
+
+    async def _handle_unspoken_text(self, frame: TextFrame) -> None:
+        """Check a ``skip_tts`` text frame on its own: drop it if blocked."""
+        text = frame.text.strip()
+        if text:
+            verdict = await self._check(text)
+            if verdict.blocked:
+                return
+            if verdict.text != text:
+                redacted = TextFrame(verdict.text)
+                redacted.skip_tts = frame.skip_tts
+                redacted.append_to_context = frame.append_to_context
+                frame = redacted
+        await self._handle_other(frame)
 
     async def _handle_other(self, frame: Frame) -> None:
         """Pass on a frame that is not checked, without letting it overtake held text."""

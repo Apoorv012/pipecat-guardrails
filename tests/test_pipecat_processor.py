@@ -205,6 +205,33 @@ async def test_units_from_llm_text_processor_are_checked_without_resplitting():
     assert down[1] is ok  # passed on unchanged
 
 
+def unspoken(text: str) -> TextFrame:
+    frame = TextFrame(text)
+    frame.skip_tts = True
+    return frame
+
+
+async def test_unspoken_text_frame_is_dropped_if_blocked():
+    down = await run(OutputGuardProcessor(make_guard()), [unspoken("Try Acme Corp.")])
+    assert not any(isinstance(f, TextFrame) for f in down)
+
+
+async def test_unspoken_text_frame_is_redacted():
+    frame = unspoken("Mail a@b.com")
+    frame.append_to_context = False
+    down = await run(OutputGuardProcessor(make_guard()), [frame])
+    out = [f for f in down if type(f) is TextFrame]
+    assert [f.text for f in out] == ["Mail [email]"]
+    assert out[0].skip_tts is True
+    assert out[0].append_to_context is False
+
+
+async def test_unspoken_text_frame_passes_unchanged_if_allowed():
+    frame = unspoken("All good.")
+    down = await run(OutputGuardProcessor(make_guard()), [frame])
+    assert down[0] is frame
+
+
 async def test_expression_units_are_not_checked():
     sound = AggregatedTextFrame("acme corp", "expression_sound")
     down = await run(OutputGuardProcessor(make_guard()), [sound])
@@ -275,6 +302,15 @@ async def test_full_reply_block_still_passes_other_frames():
         LLMFullResponseEndFrame,
     ]
     assert spoken(down) == [FALLBACK]
+
+
+async def test_full_reply_interruption_keeps_function_call_frames():
+    call = call_frame()  # Pipecat marks it uninterruptible
+    frames = [LLMFullResponseStartFrame(), LLMTextFrame("Let me check. "), call]
+    frames += [SleepFrame(sleep=0.05), InterruptionFrame(), SleepFrame(sleep=0.05)]
+    down = await run(OutputGuardProcessor(make_guard(), strategy="full_reply"), frames)
+    assert call in down
+    assert spoken(down) == []  # the held text was interrupted, so it is not spoken
 
 
 async def test_full_reply_passes_units_through():
