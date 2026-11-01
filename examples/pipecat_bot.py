@@ -7,6 +7,9 @@ Setup:
     pip install pipecat-guardrails "pipecat-ai[deepgram,cartesia,openai,local,silero]"
     export DEEPGRAM_API_KEY=... OPENAI_API_KEY=... CARTESIA_API_KEY=... CARTESIA_VOICE_ID=...
 
+    On Windows, use Python 3.13 or older: PyAudio (mic and speaker access) has no Python 3.14
+    wheel yet and fails to build without Visual C++ Build Tools.
+
 Run:
     python examples/pipecat_bot.py
 """

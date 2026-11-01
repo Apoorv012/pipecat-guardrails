@@ -6,6 +6,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-31
+
+The Pipecat processor: put one line between the LLM and the TTS.
+
 ### Added
 - `OutputGuardProcessor`: a Pipecat processor that sits between the LLM and the TTS and checks
   each sentence before it is spoken. Allowed sentences pass, redacted ones are spoken with the
@@ -46,6 +50,7 @@ classifier / LLM-judge layers come in later releases.
 ### Added
 - Package structure, CI and release workflow. No guardrail functionality yet.
 
-[Unreleased]: https://github.com/Apoorv012/pipecat-guardrails/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/Apoorv012/pipecat-guardrails/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/Apoorv012/pipecat-guardrails/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Apoorv012/pipecat-guardrails/compare/v0.0.1...v0.1.0
 [0.0.1]: https://github.com/Apoorv012/pipecat-guardrails/releases/tag/v0.0.1

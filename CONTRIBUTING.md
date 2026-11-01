@@ -20,5 +20,5 @@ code.
 
 1. Move the `[Unreleased]` notes in `CHANGELOG.md` under a new version heading.
 2. Set the same version in `pyproject.toml`.
-3. Commit, then tag and push: `git tag v0.1.0 && git push origin v0.1.0`.
+3. Commit, then tag and push: `git tag v0.2.0 && git push origin v0.2.0` (use the new version).
 4. The release workflow builds the package, publishes it to PyPI and creates a GitHub release.
