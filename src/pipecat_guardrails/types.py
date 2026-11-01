@@ -13,6 +13,17 @@ Mode = Literal["enforce", "shadow"]
 OnError = Literal["allow", "block"]
 """What to do when a check fails: ``allow`` fails open, ``block`` fails closed."""
 
+PolicyOnError = Literal["allow", "block", "escalate"]
+"""What to do when a classifier or judge fails on a policy.
+
+``allow`` fails open, ``block`` fails closed, and ``escalate`` passes the policy to the next
+layer (from the classifier to the judge). With no next layer, ``escalate`` falls back to the
+guard's ``on_error``.
+"""
+
+Layer = Literal["rules", "classifier", "judge"]
+"""The layer that produced a violation or an error."""
+
 
 class Action(StrEnum):
     """What to do with a piece of text, from least to most severe."""
@@ -46,7 +57,8 @@ class CheckContext:
 
     Parameters:
         history: Recent conversation messages in OpenAI chat format, oldest first.
-            Rules ignore it; judges (a later layer) can use it to understand the reply.
+            Rules ignore it. The classifier and the judge get the last few messages
+            (``Guard(history_turns=...)``) so they can understand the reply in context.
         language: Language hint such as ``"hi"`` or ``"en-IN"``, if known.
         metadata: Free-form values for custom rules (call id, user tier, ...).
     """
@@ -61,14 +73,16 @@ class Violation:
     """One rule (or policy) that the text broke.
 
     Parameters:
-        rule_id: Id of the rule that fired.
+        rule_id: Id of the rule or policy that fired.
         action: The action that rule asks for.
         reason: Human-readable explanation, safe to log (never contains the matched text).
         span: ``(start, end)`` offsets of the match in the original text, if the rule
             located one.
-        score: Confidence from 0 to 1, if the rule produces one.
+        score: Confidence from 0 to 1, if the rule produces one. For a policy, the
+            probability of "yes" that decided it.
         error: True when this violation was produced because the check itself failed
             and its error policy is ``"block"``.
+        layer: ``"rules"``, ``"classifier"`` or ``"judge"``: the layer that decided.
     """
 
     rule_id: str
@@ -77,21 +91,27 @@ class Violation:
     span: tuple[int, int] | None = None
     score: float | None = None
     error: bool = False
+    layer: Layer = "rules"
 
 
 @dataclass(frozen=True, slots=True)
 class CheckError:
-    """A check that raised an exception instead of returning a result.
+    """A check that raised an exception (or timed out) instead of returning a result.
 
     Parameters:
-        rule_id: Id of the rule that failed.
+        rule_id: Id of the rule or policy that failed.
         message: Exception type and message.
         failed_open: True if the text was allowed despite the failure.
+        layer: ``"rules"``, ``"classifier"`` or ``"judge"``: where it failed.
+        escalated: True if the policy was passed on to the next layer instead of being
+            decided here (a classifier failure with ``on_error="escalate"``).
     """
 
     rule_id: str
     message: str
     failed_open: bool
+    layer: Layer = "rules"
+    escalated: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -104,10 +124,11 @@ class Verdict:
         text: What to say: the original text, the redacted text, or the fallback
             (an empty string if blocked with no fallback).
         original_text: The text that was checked.
-        violations: Every rule that fired, in rule order.
+        violations: Every rule that fired, in rule order, then every policy.
         errors: Checks that failed while running.
         fallback_text: The fallback line, set only when the text was blocked.
-        latency_ms: Time spent per rule id, plus ``"total"``.
+        latency_ms: Time spent per rule id, per layer (``"classifier"``, ``"judge"``)
+            when it ran, plus ``"total"``.
         shadow: True if the guard ran in shadow mode.
     """
 

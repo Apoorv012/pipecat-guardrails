@@ -1,6 +1,6 @@
 # pipecat-guardrails: plan
 
-Status: draft, 2026-10-30. Pipecat facts below were checked against the `pipecat-ai` 1.15.0 wheel
+Status: milestones 0–3 released (0.3.0), 2026-11-02. Eval results: `docs/eval/README.md`. Pipecat facts below were checked against the `pipecat-ai` 1.15.0 wheel
 and the installed 1.12.0 source, unless marked *to verify*.
 
 ---
@@ -369,7 +369,7 @@ is a no"). Each judge call can include recent turns (`CheckContext.history`) in 
 | 0 | Repo scaffold: uv, CI, lint/type/test, license, empty package published as `0.0.1` to reserve the name | CI green; the name is reserved on PyPI |
 | 1 | Core: types, `Guard.check`, chunker, `BannedTerms`, `Regex`, `PII`, `packs.india`, shadow mode, fail policy → **v0.1.0** | VoiceMitra swaps its content rules for `Guard.check()` in whole-reply mode |
 | 2 | `OutputGuardProcessor` with the `sentence` and `full_reply` strategies, the full frame table, the violation sequence, the RTVI helper, the foundational example → **v0.2.0** | All frame tests pass on Pipecat 1.12 and latest; the example runs locally with real STT/TTS |
-| 3 | Policies and the classifier → judge cascade (Pipecat classifiers), judge checks pipelined across sentences, the `eval` command → **v0.3.0** | Eval report on the sample set for rules only, rules+Jev, rules+LLM, and all three; first-sentence latency measured for each |
+| 3 | Policies and the classifier → judge cascade (Pipecat classifiers), judge checks pipelined across sentences, the `eval` command → **v0.3.0** | Eval report on the sample set for rules only, rules+Jev, rules+LLM, and all three; first-sentence latency measured for each. **Done with rules only and rules+Jev** (F1 0.70 → 0.96, ~310 ms p50); the LLM-judge rows need an OpenAI-compatible key and are left for later |
 | 4 | Hardening: e2e `pipecat eval run`, nightly Pipecat-`main` job, docs, demo video, Pipecat docs PR → **v0.4.0 (beta)** | Listed in the Pipecat docs |
 | 5 | Optional: `optimistic` strategy with context repair; Presidio, HF local model and Guardrails AI adapters; checks on tool-call arguments | Each one ships behind its own extra, with tests |
 | 1.0 | API freeze after at least 2 external users and one release cycle without breaking changes | — |
@@ -386,8 +386,33 @@ Settled:
 2. **Fallback in history:** yes. It is spoken by the TTS, so Pipecat records it like any reply.
 3. **Stopping the LLM on block:** drain and discard the rest of the reply; no interruption.
 4. **Minimum Pipecat version:** 1.12, tested in CI with the oldest allowed dependencies.
-5. **Package name:** `pipecat-guardrails`, published (0.0.1, 0.1.0, 0.2.0).
+5. **Package name:** `pipecat-guardrails`, published (0.0.1, 0.1.0, 0.2.0, 0.2.1, 0.3.0).
+6. **Classifier and judge input:** the text after redaction (personal data is never sent),
+   plus the last `history_turns` messages of `CheckContext.history` when there are any.
+7. **Classifier failure:** goes to the judge by default when there is one; otherwise the
+   guard's `on_error`. Timeouts: 2 s for the classifier, 5 s for the judge.
+8. **Processor checks:** concurrent per sentence, released in order, at most
+   `max_parallel_checks` (5) at once. A sentence holds its slot until it is released, so after
+   a block the waiting checks are cancelled unsent. Events fire on release.
+9. **Eval scoring:** every layer runs on every example (no stopping after a rule blocks), so
+   each label is scored on its own. A rail `label:anything` counts for `label`, so a rule and a
+   policy can share a label.
 
 Open:
-6. **Who maintains it:** the community listing requires tracking Pipecat releases. The nightly CI job
+10. **Who maintains it:** the community listing requires tracking Pipecat releases. The nightly CI job
    makes that cheap, but someone has to act on its failures.
+
+Suggestions for later (found while finishing milestone 3):
+11. **Conversation history in the processor:** `OutputGuardProcessor` takes `context=` once, so
+   in a pipeline the classifier and judge never see earlier turns (`history_turns` only works
+   when the app calls `guard.check()` with history). Read the messages from Pipecat's LLM
+   context at check time instead. On the sample, the reply "Yes, go ahead and do that." is
+   only caught with the history.
+12. **Earlier sentences of the same reply:** with the `sentence` strategy the judge sees one
+   sentence at a time ("So you can drop it." loses its meaning). Send the reply so far with
+   each check.
+13. **LLM-judge eval rows:** rules+LLM and all three layers were not measured (no
+   OpenAI-compatible key). A Hugging Face endpoint works through `OpenAILLMService(base_url=...)`.
+14. **From milestone 2:** a `check_tts_speak` option, an `on_error` event, latency metrics
+   through Pipecat `MetricsFrame`s, and calling `classifier.setup()` from the processor so
+   Jev opens its connection before the first sentence.

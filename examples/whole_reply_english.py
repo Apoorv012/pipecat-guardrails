@@ -35,7 +35,8 @@ REPLIES = [
     "Don’t worry, everything will be fine.",  # curly apostrophe, as LLMs often write it  # noqa: RUF001
     "I'll call you back on +1 415 555 0132.",
     # A limit of word lists: this safe sentence is blocked because it contains
-    # "stop taking". The classifier and LLM-judge layers (coming next) handle meaning.
+    # "stop taking". Policies, answered by a classifier or an LLM judge, handle meaning:
+    # see examples/eval/guards.py.
     "Please don't stop taking it without asking your doctor.",
 ]
 

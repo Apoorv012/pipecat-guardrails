@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pipecat-guardrails"
-version = "0.2.1"
+version = "0.3.0"
 description = "Output guardrails for Pipecat voice agents: check what the bot is about to say, and stop it before it is spoken."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -32,6 +32,9 @@ dependencies = ["pipecat-ai>=1.12,<2"]
 [project.optional-dependencies]
 jev = ["pipecat-ai[jev]>=1.12,<2"]  # TypeSafe Jev classifier client
 
+[project.scripts]
+pipecat-guardrails = "pipecat_guardrails.eval.cli:main"
+
 [project.urls]
 Homepage = "https://github.com/Apoorv012/pipecat-guardrails"
 Repository = "https://github.com/Apoorv012/pipecat-guardrails"
@@ -53,7 +56,7 @@ dev = [
 packages = ["src/pipecat_guardrails"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src/", "tests/", "README.md", "CHANGELOG.md", "LICENSE"]
+include = ["src/", "tests/", "examples/", "README.md", "CHANGELOG.md", "LICENSE"]
 
 [tool.ruff]
 line-length = 100
