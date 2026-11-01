@@ -3,8 +3,9 @@
 The same voice bot three ways: without a guardrail, with a hand-written guardrail, and with
 `pipecat-guardrails`.
 
-The Pipecat code uses the Pipecat 1.15 class names. The "after" code shows the planned API from
-`PLAN.md`; that package hasn't been built yet.
+The Pipecat code uses the Pipecat 1.15 class names. In the "after" code, the rules, the processor,
+the fallback, shadow mode and the events work today (0.2.0). The `policies`, `classifier` and
+`judge` arguments are planned for 0.3.0 (see `PLAN.md`).
 
 ---
 
@@ -129,13 +130,13 @@ from pipecat_guardrails.pipecat import OutputGuardProcessor
 guard = Guard(
     # Layer 1: local and instant
     rules=[BannedTerms(["acme pharmacy"], id="no-competitors")],
-    # Rules for layers 2 and 3, written once as yes/no questions
+    # Rules for layers 2 and 3, written once as yes/no questions (planned, 0.3.0)
     policies={
         "no-med-advice": "Does this reply tell the user to stop, skip or change their medication?",
     },
-    # Layer 2 (optional): fast classifier; sure answers decide, unsure ones go to layer 3
+    # Layer 2 (optional, 0.3.0): fast classifier; sure answers decide, unsure ones go to layer 3
     classifier=JevClassifier(api_key=os.environ["TYPESAFE_API_KEY"]),
-    # Layer 3 (optional): any OpenAI-compatible LLM gives the final answer
+    # Layer 3 (optional, 0.3.0): any OpenAI-compatible LLM gives the final answer
     judge=LLMClassifier(llm=OpenAILLMService(api_key=os.environ["OPENAI_API_KEY"], model="gpt-4.1-nano")),
     fallback="Sorry, I can't advise on that. Please check with your doctor.",
     mode="enforce",   # "shadow" logs violations without blocking
@@ -145,7 +146,7 @@ output_guard = OutputGuardProcessor(guard)
 
 @output_guard.event_handler("on_violation")
 async def on_violation(processor, verdict):
-    logger.warning(f"blocked {[v.rail_id for v in verdict.violations]}")
+    logger.warning(f"blocked: {', '.join(verdict.rule_ids)}")
 
 pipeline = Pipeline([
     transport.input(), stt, agg.user(), llm,
