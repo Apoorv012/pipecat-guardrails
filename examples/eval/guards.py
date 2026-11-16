@@ -5,9 +5,9 @@ Score them on the sample data (rules_only needs no API keys):
     uv run pipecat-guardrails eval examples/eval/sample.jsonl \
         --guard examples/eval/guards.py:rules_only
 
-Compare all four:
+Compare all four (the judge is Sarvam's LLM if SARVAM_API_KEY is set, otherwise OpenAI's):
 
-    export TYPESAFE_API_KEY=... OPENAI_API_KEY=...
+    export TYPESAFE_API_KEY=... SARVAM_API_KEY=...   # or OPENAI_API_KEY
     uv sync --extra jev
     uv run pipecat-guardrails eval examples/eval/sample.jsonl \
         --guard examples/eval/guards.py:rules_only \
@@ -77,7 +77,19 @@ def _jev() -> BaseClassifier:
 
 
 def _llm() -> BaseClassifier:
+    """The LLM judge: Sarvam if SARVAM_API_KEY is set, otherwise OpenAI."""
     from pipecat.classifiers.llm.classifier import LLMClassifier
+
+    if os.environ.get("SARVAM_API_KEY"):
+        from pipecat.services.sarvam.llm import SarvamLLMService
+
+        model = os.environ.get("JUDGE_MODEL", "sarvam-105b-conversations")
+        return LLMClassifier(
+            llm=SarvamLLMService(
+                api_key=_env("SARVAM_API_KEY"), settings=SarvamLLMService.Settings(model=model)
+            )
+        )
+
     from pipecat.services.openai.llm import OpenAILLMService
 
     model = os.environ.get("JUDGE_MODEL", "gpt-4.1-nano")

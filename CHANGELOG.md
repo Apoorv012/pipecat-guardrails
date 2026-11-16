@@ -6,6 +6,24 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+Examples you can talk to, and the rest of the milestone 3 eval.
+
+### Added
+- `examples/echo_bot.py`: a voice bot that repeats what you say through the guard (rules and
+  the Jev classifier), so you control what it tries to say. `--rules-only` and `--shadow`.
+- `examples/health_bot.py`: a medicine-reminder voice bot with a refill tool and all three
+  layers (rules, Jev, a Sarvam LLM judge), a fallback line per rule, and `--naughty`,
+  `--rules-only`, `--shadow` and `--strategy` options.
+- Both use Sarvam for speech-to-text, the LLM and text-to-speech, and a browser client over
+  WebRTC (no PyAudio). Their dependencies are in a new `examples` dependency group.
+- The eval's example guards use Sarvam's LLM as the judge when `SARVAM_API_KEY` is set.
+  `docs/eval/` now has all four rows: rules only 0.70 F1, + Jev 0.96, + Sarvam judge 0.94,
+  all three 0.96.
+
+### Removed
+- `examples/pipecat_bot.py` (Deepgram, Cartesia and OpenAI over local audio). It needed
+  PyAudio, which has no Python 3.14 wheel on Windows; the two browser bots replace it.
+
 ## [0.3.0] - 2026-11-02
 
 Policies, answered by a classifier and an LLM judge, and an eval command to measure them.

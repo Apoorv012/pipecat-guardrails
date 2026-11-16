@@ -46,8 +46,8 @@ pipeline = Pipeline([
 > `rtvi_observer_params=guarded_rtvi_observer_params()` (from `pipecat_guardrails.pipecat`) to
 > `PipelineWorker` to turn that off.
 
-Try it without API keys: `uv run python examples/pipeline_demo.py`. A full voice bot is in
-[`examples/pipecat_bot.py`](examples/pipecat_bot.py).
+Try it without API keys: `uv run python examples/pipeline_demo.py`. Or talk to a bot in your
+browser (see [Examples](#examples)).
 
 ## Without Pipecat's LLM loop
 
@@ -96,6 +96,31 @@ verdict.rule_ids    # ("no-medical-advice",)
 Runnable examples, the same health bot in two languages:
 [`examples/whole_reply_english.py`](examples/whole_reply_english.py) and
 [`examples/whole_reply_hinglish.py`](examples/whole_reply_hinglish.py).
+
+## Examples
+
+Two voice bots you talk to in your browser. They use Sarvam for speech and the LLM (English,
+Hindi and Hinglish) and TypeSafe Jev for policies:
+
+```bash
+uv sync --group examples --extra jev
+export SARVAM_API_KEY=... TYPESAFE_API_KEY=...
+uv run python examples/echo_bot.py      # then open http://localhost:7860
+```
+
+- [`examples/echo_bot.py`](examples/echo_bot.py): repeats what you say, through the guard.
+  There's no LLM, so you choose exactly what the bot tries to say: a phone number, a competitor,
+  medication advice in Hinglish. `--rules-only` shows what word lists miss, `--shadow` logs
+  instead of blocking.
+- [`examples/health_bot.py`](examples/health_bot.py): Mitra, a medicine-reminder assistant
+  with a refill tool and all three layers (rules, Jev, a Sarvam LLM judge). `--naughty` makes
+  the LLM give medication advice and plug a competitor, so you can hear the guard step in;
+  `--strategy full_reply` checks whole replies.
+
+Without keys: [`examples/pipeline_demo.py`](examples/pipeline_demo.py) (a scripted pipeline),
+[`examples/whole_reply_english.py`](examples/whole_reply_english.py) and
+[`examples/whole_reply_hinglish.py`](examples/whole_reply_hinglish.py) (`guard.check()` alone),
+and [`examples/eval/`](examples/eval/) (the eval data and guards).
 
 ## Why
 
