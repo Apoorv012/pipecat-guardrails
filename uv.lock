@@ -2722,7 +2722,7 @@ wheels = [
 
 [[package]]
 name = "pipecat-guardrails"
-version = "0.3.0"
+version = "0.3.1"
 source = { editable = "." }
 dependencies = [
     { name = "pipecat-ai" },
