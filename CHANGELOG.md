@@ -6,6 +6,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-11-16
+
 Examples you can talk to, and the rest of the milestone 3 eval.
 
 ### Added
@@ -118,7 +120,8 @@ classifier / LLM-judge layers come in later releases.
 ### Added
 - Package structure, CI and release workflow. No guardrail functionality yet.
 
-[Unreleased]: https://github.com/Apoorv012/pipecat-guardrails/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/Apoorv012/pipecat-guardrails/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/Apoorv012/pipecat-guardrails/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/Apoorv012/pipecat-guardrails/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/Apoorv012/pipecat-guardrails/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/Apoorv012/pipecat-guardrails/compare/v0.1.0...v0.2.0
