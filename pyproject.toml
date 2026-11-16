@@ -51,6 +51,9 @@ dev = [
     "pre-commit>=4",
     "hypothesis>=6.100",
 ]
+# What the voice examples need (examples/echo_bot.py, examples/health_bot.py):
+# Sarvam speech and LLM, a browser client over WebRTC, and Silero voice detection.
+examples = ["pipecat-ai[sarvam,webrtc,silero,runner]>=1.12,<2"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/pipecat_guardrails"]

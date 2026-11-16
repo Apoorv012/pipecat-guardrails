@@ -369,7 +369,7 @@ is a no"). Each judge call can include recent turns (`CheckContext.history`) in 
 | 0 | Repo scaffold: uv, CI, lint/type/test, license, empty package published as `0.0.1` to reserve the name | CI green; the name is reserved on PyPI |
 | 1 | Core: types, `Guard.check`, chunker, `BannedTerms`, `Regex`, `PII`, `packs.india`, shadow mode, fail policy → **v0.1.0** | VoiceMitra swaps its content rules for `Guard.check()` in whole-reply mode |
 | 2 | `OutputGuardProcessor` with the `sentence` and `full_reply` strategies, the full frame table, the violation sequence, the RTVI helper, the foundational example → **v0.2.0** | All frame tests pass on Pipecat 1.12 and latest; the example runs locally with real STT/TTS |
-| 3 | Policies and the classifier → judge cascade (Pipecat classifiers), judge checks pipelined across sentences, the `eval` command → **v0.3.0** | Eval report on the sample set for rules only, rules+Jev, rules+LLM, and all three; first-sentence latency measured for each. **Done with rules only and rules+Jev** (F1 0.70 → 0.96, ~310 ms p50); the LLM-judge rows need an OpenAI-compatible key and are left for later |
+| 3 | Policies and the classifier → judge cascade (Pipecat classifiers), judge checks pipelined across sentences, the `eval` command → **v0.3.0** | Eval report on the sample set for rules only, rules+Jev, rules+LLM, and all three; first-sentence latency measured for each. **Done** (0.3.0; judge rows added after release, with Sarvam): F1 0.70 rules only, 0.96 +Jev, 0.94 +Sarvam judge, 0.96 all three; ~150–310 ms per check |
 | 4 | Hardening: e2e `pipecat eval run`, nightly Pipecat-`main` job, docs, demo video, Pipecat docs PR → **v0.4.0 (beta)** | Listed in the Pipecat docs |
 | 5 | Optional: `optimistic` strategy with context repair; Presidio, HF local model and Guardrails AI adapters; checks on tool-call arguments | Each one ships behind its own extra, with tests |
 | 1.0 | API freeze after at least 2 external users and one release cycle without breaking changes | — |
@@ -411,8 +411,6 @@ Suggestions for later (found while finishing milestone 3):
 12. **Earlier sentences of the same reply:** with the `sentence` strategy the judge sees one
    sentence at a time ("So you can drop it." loses its meaning). Send the reply so far with
    each check.
-13. **LLM-judge eval rows:** rules+LLM and all three layers were not measured (no
-   OpenAI-compatible key). A Hugging Face endpoint works through `OpenAILLMService(base_url=...)`.
-14. **From milestone 2:** a `check_tts_speak` option, an `on_error` event, latency metrics
+13. **From milestone 2:** a `check_tts_speak` option, an `on_error` event, latency metrics
    through Pipecat `MetricsFrame`s, and calling `classifier.setup()` from the processor so
    Jev opens its connection before the first sentence.
