@@ -1,11 +1,13 @@
 """Mitra, a medicine-reminder voice bot with all three guard layers. Talk to it in your browser.
 
-Sarvam does the speech-to-text, the LLM and the text-to-speech, in English, Hindi or
-Hinglish. The guard checks every sentence before it is spoken:
+The LLM and the judge are any OpenAI-compatible endpoint (OpenAI, Sarvam, Groq, OpenRouter,
+Ollama, ...), set with OPENAI_BASE_URL, OPENAI_API_KEY and OPENAI_MODEL. Sarvam does the
+speech, in English, Hindi or Hinglish; swap in any Pipecat STT and TTS in make_speech().
+The guard checks every sentence before it is spoken:
 
 1. Rules: competitor names, personal data, banned phrases. Local and instant.
 2. The Jev classifier answers the policies below in one call and decides when it is sure.
-3. The Sarvam LLM judge decides when Jev is unsure.
+3. The LLM judge decides when Jev is unsure.
 
 Start it with --naughty to make the LLM over-helpful, so the guard has something to stop.
 
@@ -21,7 +23,7 @@ Try saying:
 Setup:
     uv sync --group examples --extra jev       # or: pip install pipecat-guardrails[jev]
                                                #     "pipecat-ai[sarvam,webrtc,silero,runner]"
-    export SARVAM_API_KEY=... TYPESAFE_API_KEY=...
+    cp .env.example .env                       # then fill in the keys and the LLM
 
 Run, then open http://localhost:7860 and click Connect:
     uv run python examples/health_bot.py --naughty
@@ -115,23 +117,18 @@ POLICIES = {
 
 
 def make_guard(*, rules_only: bool = False, shadow: bool = False) -> Guard:
-    """Rules, then Jev, then the Sarvam judge (or rules alone)."""
+    """Rules, then Jev, then the LLM judge (or rules alone)."""
     mode = "shadow" if shadow else "enforce"
     if rules_only:
         return Guard(rules(), fallback=fallback, mode=mode)
     from pipecat.classifiers.llm.classifier import LLMClassifier
     from pipecat.classifiers.typesafe.jev.classifier import JevClassifier
-    from pipecat.services.sarvam.llm import SarvamLLMService
 
-    judge_llm = SarvamLLMService(
-        api_key=os.environ["SARVAM_API_KEY"],
-        settings=SarvamLLMService.Settings(model="sarvam-105b-conversations"),
-    )
     return Guard(
         rules(),
         policies=POLICIES,
         classifier=JevClassifier(api_key=os.environ["TYPESAFE_API_KEY"]),
-        judge=LLMClassifier(llm=judge_llm),
+        judge=LLMClassifier(llm=make_llm()),
         fallback=fallback,
         mode=mode,
     )
@@ -164,20 +161,45 @@ def log_decisions(output_guard: Any) -> None:
         )
 
 
+def make_llm(system_instruction: str | None = None) -> Any:
+    """An OpenAI-compatible LLM, configured from the environment (see .env.example).
+
+    OPENAI_BASE_URL picks the provider (unset means OpenAI itself), OPENAI_API_KEY is that
+    provider's key, and OPENAI_MODEL the model. Used for both the bot and the judge.
+    """
+    from pipecat.services.openai.llm import OpenAILLMService
+
+    return OpenAILLMService(
+        api_key=os.environ["OPENAI_API_KEY"],
+        base_url=os.environ.get("OPENAI_BASE_URL") or None,
+        settings=OpenAILLMService.Settings(
+            model=os.environ.get("OPENAI_MODEL", "gpt-4.1"),
+            system_instruction=system_instruction,
+        ),
+    )
+
+
+def make_speech() -> tuple[Any, Any]:
+    """Speech-to-text and text-to-speech. Replace these with any Pipecat STT and TTS."""
+    from pipecat.services.sarvam.stt import SarvamSTTService
+    from pipecat.services.sarvam.tts import SarvamTTSService
+    from pipecat.transcriptions.language import Language
+
+    stt = SarvamSTTService(api_key=os.environ["SARVAM_API_KEY"])
+    tts = SarvamTTSService(
+        api_key=os.environ["SARVAM_API_KEY"],
+        settings=SarvamTTSService.Settings(voice="ritu", language=Language.HI_IN),
+    )
+    return stt, tts
+
+
 def build_llm(args: argparse.Namespace) -> tuple[Any, Any]:
-    """The Sarvam LLM with the refill tool, and its conversation context."""
+    """The LLM with the refill tool, and its conversation context."""
     from pipecat.adapters.llm.schemas.function_schema import FunctionSchema
     from pipecat.adapters.llm.schemas.tools_schema import ToolsSchema
     from pipecat.processors.aggregators.llm_context import LLMContext
-    from pipecat.services.sarvam.llm import SarvamLLMService
 
-    prompt = NAUGHTY_PROMPT if args.naughty else SYSTEM_PROMPT
-    llm = SarvamLLMService(
-        api_key=os.environ["SARVAM_API_KEY"],
-        settings=SarvamLLMService.Settings(
-            model="sarvam-105b-conversations", system_instruction=prompt
-        ),
-    )
+    llm = make_llm(NAUGHTY_PROMPT if args.naughty else SYSTEM_PROMPT)
     llm.register_function("get_next_refill", get_next_refill)
     refill_tool = FunctionSchema(
         name="get_next_refill",
@@ -199,18 +221,11 @@ async def run_bot(transport: Any, args: argparse.Namespace, handle_sigint: bool)
         LLMContextAggregatorPair,
         LLMUserAggregatorParams,
     )
-    from pipecat.services.sarvam.stt import SarvamSTTService
-    from pipecat.services.sarvam.tts import SarvamTTSService
-    from pipecat.transcriptions.language import Language
     from pipecat.workers.runner import WorkerRunner
 
     from pipecat_guardrails.pipecat import OutputGuardProcessor, guarded_rtvi_observer_params
 
-    stt = SarvamSTTService(api_key=os.environ["SARVAM_API_KEY"])
-    tts = SarvamTTSService(
-        api_key=os.environ["SARVAM_API_KEY"],
-        settings=SarvamTTSService.Settings(voice="ritu", language=Language.HI_IN),
-    )
+    stt, tts = make_speech()
     llm, context = build_llm(args)
     aggregators = LLMContextAggregatorPair(
         context, user_params=LLMUserAggregatorParams(vad_analyzer=SileroVADAnalyzer())
@@ -255,9 +270,17 @@ async def bot(runner_args: Any) -> None:
     from pipecat.runner.utils import create_transport
     from pipecat.transports.base_transport import TransportParams
 
+    def eval_params() -> Any:  # what `pipecat eval run` connects to (see evals/README.md)
+        from pipecat.evals.transport import EvalTransportParams
+
+        return EvalTransportParams(audio_in_enabled=True, audio_out_enabled=True)
+
     transport = await create_transport(
         runner_args,
-        {"webrtc": lambda: TransportParams(audio_in_enabled=True, audio_out_enabled=True)},
+        {
+            "webrtc": lambda: TransportParams(audio_in_enabled=True, audio_out_enabled=True),
+            "eval": eval_params,
+        },
     )
     await run_bot(transport, runner_args.cli_args, runner_args.handle_sigint)
 

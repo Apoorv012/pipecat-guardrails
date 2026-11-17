@@ -1,0 +1,28 @@
+# End-to-end evals for examples/health_bot.py: the LLM (any OpenAI-compatible endpoint) calls
+# the refill tool, and the answer gets through the guard (rules, Jev, the LLM judge) to the TTS.
+#
+# Needs OPENAI_API_KEY (plus OPENAI_BASE_URL / OPENAI_MODEL for a provider other than OpenAI),
+# SARVAM_API_KEY (the bot's speech) and TYPESAFE_API_KEY (Jev). See evals/README.md.
+
+name: health_bot
+
+user:
+  modality: text
+judge:
+  modality: audio
+  transcription:          # required by audio mode; not used, since nothing asserts `response`
+    service: whisper
+
+scenarios:
+  - name: refill_tool
+    turns:
+      - expect:
+          - event: tts_response
+            text_contains: "Ask me about your medicines"
+      - user: "When is my metformin refill due?"
+        expect:
+          - event: function_call
+            calls:
+              - name: get_next_refill
+          - event: tts_response
+            text_matches: "(?i)15|fifteen"

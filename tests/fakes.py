@@ -4,7 +4,7 @@
 # pyright: reportUnknownMemberType=false
 
 import asyncio
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Mapping
 from typing import Any
 
 from pipecat.classifiers.base_classifier import (
@@ -49,7 +49,9 @@ class FakeClassifier(BaseClassifier):
         self,
         state: str | dict[str, Any] | list[Any],
         questions: Mapping[str, ClassifierQuestion],
-        images: Sequence[Any] = (),
+        # Pipecat 1.12-1.15 call the third argument `images`; later versions call it `inputs`.
+        *_args: Any,
+        **_kwargs: Any,
     ) -> tuple[dict[str, ClassifierResult], None]:
         self.calls.append((state, dict(questions)))
         self.in_flight += 1

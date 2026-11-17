@@ -1,0 +1,73 @@
+# Every night, check that pipecat-guardrails still works with the newest Pipecat: the latest
+# release and the main branch. This is what keeps the "Tested with Pipecat" line in the README
+# honest, which Pipecat asks of community integrations.
+#
+# A failing scheduled run emails whoever last changed the cron line below.
+name: Nightly
+
+on:
+  schedule:
+    - cron: "30 3 * * *"   # 03:30 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PIPECAT_MAIN: git+https://github.com/pipecat-ai/pipecat.git@main
+
+jobs:
+  pipecat-latest:
+    # The newest Pipecat release, not the one in uv.lock.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+      - run: uv sync --upgrade-package pipecat-ai
+      - run: uv run python -c "import pipecat; print('Pipecat', pipecat.__version__)"
+      - run: uv run pytest
+      - run: uv run pyright
+
+  pipecat-main:
+    # Pipecat's main branch: breaking changes show up here before they are released.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+      - run: uv sync --locked
+      - run: uv pip install "pipecat-ai @ $PIPECAT_MAIN"
+      - run: uv run --no-sync python -c "import pipecat; print('Pipecat', pipecat.__version__)"
+      - run: uv run --no-sync pytest
+      - run: uv run --no-sync pyright
+
+  evals:
+    # The end-to-end evals in evals/ against Pipecat's main branch: the real voice examples,
+    # with Sarvam speech, the Jev classifier and an OpenAI-compatible LLM. Skipped unless the
+    # secrets SARVAM_API_KEY, TYPESAFE_API_KEY and OPENAI_API_KEY are set. OPENAI_BASE_URL
+    # and OPENAI_MODEL are repository variables (unset means OpenAI and gpt-4.1).
+    runs-on: ubuntu-latest
+    env:
+      SARVAM_API_KEY: ${{ secrets.SARVAM_API_KEY }}
+      TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OPENAI_BASE_URL: ${{ vars.OPENAI_BASE_URL }}
+      OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'gpt-4.1' }}
+      HAS_KEYS: ${{ secrets.SARVAM_API_KEY != '' && secrets.TYPESAFE_API_KEY != '' && secrets.OPENAI_API_KEY != '' }}
+    steps:
+      - uses: actions/checkout@v7
+        if: env.HAS_KEYS == 'true'
+      - uses: astral-sh/setup-uv@v7
+        if: env.HAS_KEYS == 'true'
+      - name: Install with Pipecat main
+        if: env.HAS_KEYS == 'true'
+        run: |
+          uv sync --locked --group evals --extra jev
+          uv pip install "pipecat-ai[sarvam,webrtc,silero,runner,cli,jev] @ $PIPECAT_MAIN"
+      - name: Run the evals
+        if: env.HAS_KEYS == 'true'
+        run: uv run --no-sync pipecat eval suite evals/manifest.yaml
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: eval-logs
+          path: .eval-runs/

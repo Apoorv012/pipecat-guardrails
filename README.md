@@ -99,21 +99,29 @@ Runnable examples, the same health bot in two languages:
 
 ## Examples
 
-Two voice bots you talk to in your browser. They use Sarvam for speech and the LLM (English,
-Hindi and Hinglish) and TypeSafe Jev for policies:
+Two voice bots you talk to in your browser. The LLM is any OpenAI-compatible endpoint, Sarvam
+does the speech (English, Hindi and Hinglish), and TypeSafe Jev answers the policies:
 
 ```bash
 uv sync --group examples --extra jev
-export SARVAM_API_KEY=... TYPESAFE_API_KEY=...
+cp .env.example .env                    # then fill in the keys
 uv run python examples/echo_bot.py      # then open http://localhost:7860
 ```
+
+- **The LLM and the judge** read `OPENAI_API_KEY`, `OPENAI_MODEL` and `OPENAI_BASE_URL` from
+  `.env`. Leave the base URL unset for OpenAI, or point it at Sarvam, Groq, OpenRouter, a local
+  Ollama, or any other OpenAI-compatible server; `.env.example` lists a few.
+- **The speech** is in one function, `make_speech()`, at the top of each bot. To use other
+  services, replace the two lines there with any Pipecat STT and TTS, for example
+  `DeepgramSTTService(api_key=...)` and `CartesiaTTSService(api_key=..., settings=...)`. The
+  examples are tested with Sarvam.
 
 - [`examples/echo_bot.py`](examples/echo_bot.py): repeats what you say, through the guard.
   There's no LLM, so you choose exactly what the bot tries to say: a phone number, a competitor,
   medication advice in Hinglish. `--rules-only` shows what word lists miss, `--shadow` logs
   instead of blocking.
 - [`examples/health_bot.py`](examples/health_bot.py): Mitra, a medicine-reminder assistant
-  with a refill tool and all three layers (rules, Jev, a Sarvam LLM judge). `--naughty` makes
+  with a refill tool and all three layers (rules, Jev, an LLM judge). `--naughty` makes
   the LLM give medication advice and plug a competitor, so you can hear the guard step in;
   `--strategy full_reply` checks whole replies.
 
@@ -141,6 +149,10 @@ pip install "pipecat-guardrails[jev]"   # also installs the TypeSafe Jev classif
 ```
 
 Requires Python 3.11+ and Pipecat 1.12 or later (installed automatically).
+
+**Tested with Pipecat v1.16.0.** CI runs the tests on the oldest supported version (1.12) and on
+the locked one, and a nightly job runs them, plus the end-to-end evals, against Pipecat's latest
+release and its `main` branch.
 
 ## Policies: checks that need understanding
 
@@ -232,6 +244,15 @@ uv run ruff check .          # lint
 uv run ruff format .         # format
 uv run pyright               # type check
 uv run pre-commit install    # run the checks on every commit
+```
+
+End-to-end evals with Pipecat's eval harness (`pipecat eval`): they start the voice examples
+and check what they actually speak. They use the keys in `.env` (see `.env.example` and
+[evals/README.md](evals/README.md)).
+
+```bash
+uv sync --group evals --extra jev
+uv run pipecat eval suite evals/manifest.yaml
 ```
 
 ## License

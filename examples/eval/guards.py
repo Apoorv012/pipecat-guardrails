@@ -5,9 +5,10 @@ Score them on the sample data (rules_only needs no API keys):
     uv run pipecat-guardrails eval examples/eval/sample.jsonl \
         --guard examples/eval/guards.py:rules_only
 
-Compare all four (the judge is Sarvam's LLM if SARVAM_API_KEY is set, otherwise OpenAI's):
+Compare all four. The judge is any OpenAI-compatible LLM, set in .env (see .env.example):
+OPENAI_API_KEY, plus OPENAI_BASE_URL and OPENAI_MODEL for a provider other than OpenAI.
+JUDGE_MODEL overrides the model for the judge alone.
 
-    export TYPESAFE_API_KEY=... SARVAM_API_KEY=...   # or OPENAI_API_KEY
     uv sync --extra jev
     uv run pipecat-guardrails eval examples/eval/sample.jsonl \
         --guard examples/eval/guards.py:rules_only \
@@ -77,24 +78,15 @@ def _jev() -> BaseClassifier:
 
 
 def _llm() -> BaseClassifier:
-    """The LLM judge: Sarvam if SARVAM_API_KEY is set, otherwise OpenAI."""
+    """The LLM judge: any OpenAI-compatible endpoint, from the environment."""
     from pipecat.classifiers.llm.classifier import LLMClassifier
-
-    if os.environ.get("SARVAM_API_KEY"):
-        from pipecat.services.sarvam.llm import SarvamLLMService
-
-        model = os.environ.get("JUDGE_MODEL", "sarvam-105b-conversations")
-        return LLMClassifier(
-            llm=SarvamLLMService(
-                api_key=_env("SARVAM_API_KEY"), settings=SarvamLLMService.Settings(model=model)
-            )
-        )
-
     from pipecat.services.openai.llm import OpenAILLMService
 
-    model = os.environ.get("JUDGE_MODEL", "gpt-4.1-nano")
+    model = os.environ.get("JUDGE_MODEL") or os.environ.get("OPENAI_MODEL", "gpt-4.1-nano")
     llm = OpenAILLMService(
-        api_key=_env("OPENAI_API_KEY"), settings=OpenAILLMService.Settings(model=model)
+        api_key=_env("OPENAI_API_KEY"),
+        base_url=os.environ.get("OPENAI_BASE_URL") or None,
+        settings=OpenAILLMService.Settings(model=model),
     )
     return LLMClassifier(llm=llm)
 

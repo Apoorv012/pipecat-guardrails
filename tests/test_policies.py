@@ -1,6 +1,5 @@
 """The classifier -> judge cascade, using fake Pipecat classifiers."""
 
-from collections.abc import Sequence
 from typing import Any
 
 import pytest
@@ -266,7 +265,7 @@ async def test_classifier_error_with_policy_block_does_not_escalate():
 
 async def test_missing_answer_counts_as_failure():
     class Forgetful(FakeClassifier):
-        async def _ask(self, state: Any, questions: Any, images: Sequence[Any] = ()) -> Any:
+        async def _ask(self, state: Any, questions: Any, *_args: Any, **_kwargs: Any) -> Any:
             return {}, None
 
     verdict = await guard(judge=Forgetful()).check("t")

@@ -9,6 +9,7 @@ dist/
 .venv/
 .env
 .env.*
+!.env.example
 
 # Tools
 .pytest_cache/
@@ -23,3 +24,7 @@ htmlcov/
 .DS_Store
 Thumbs.db
 pipecat-guardrails-context.md
+
+# `pipecat eval` logs
+.eval-runs/
+recordings/

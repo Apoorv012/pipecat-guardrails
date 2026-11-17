@@ -77,7 +77,8 @@ Per label, `no-med-advice` (the only label the policy covers):
 
 ```bash
 uv sync --extra jev
-export TYPESAFE_API_KEY=... SARVAM_API_KEY=...
+export TYPESAFE_API_KEY=...
+export OPENAI_API_KEY=<your Sarvam key> OPENAI_BASE_URL=https://api.sarvam.ai/v1 \n    OPENAI_MODEL=sarvam-105b-conversations
 uv run pipecat-guardrails eval examples/eval/sample.jsonl \
     --guard examples/eval/guards.py:rules_only \
     --guard examples/eval/guards.py:rules_jev \
@@ -86,5 +87,5 @@ uv run pipecat-guardrails eval examples/eval/sample.jsonl \
     --json docs/eval/sample-report.json --verbose
 ```
 
-With `OPENAI_API_KEY` instead of `SARVAM_API_KEY`, the judge is OpenAI's `gpt-4.1-nano`
-(`JUDGE_MODEL` picks another model).
+The judge is any OpenAI-compatible LLM: leave out `OPENAI_BASE_URL` for OpenAI itself, or
+point it at another provider. `JUDGE_MODEL` overrides the model for the judge alone.

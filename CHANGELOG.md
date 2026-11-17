@@ -6,6 +6,30 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+- End-to-end evals in `evals/`, run with Pipecat's eval harness
+  (`pipecat eval suite evals/manifest.yaml`). They start `examples/echo_bot.py` and check the
+  text its TTS actually speaks: allowed, redacted, blocked by a rule, blocked by the Hinglish
+  word list, and a paraphrase only the Jev classifier catches. A new `evals` dependency group
+  installs what they need.
+- `examples/echo_bot.py` and `examples/health_bot.py` accept connections from `pipecat eval`.
+- A nightly CI job that runs the tests and the type check against Pipecat's latest release and
+  its `main` branch, and the evals against `main` when the API keys are set as secrets.
+
+- `.env.example`, listing every key the examples and evals use.
+
+### Changed
+- `examples/health_bot.py` and the judge in `examples/eval/guards.py` use any OpenAI-compatible
+  LLM instead of Sarvam's: set `OPENAI_API_KEY`, `OPENAI_MODEL` and, for a provider other than
+  OpenAI, `OPENAI_BASE_URL`. Sarvam's LLM still works through its OpenAI-compatible endpoint.
+- The voice examples build their speech services in one function, `make_speech()`, so another
+  STT or TTS is a two-line change. They still use Sarvam's.
+- Tested with Pipecat 1.16.0 (`uv.lock`). The README says so, as Pipecat asks of community
+  integrations.
+- The test doubles accept the third argument of `BaseClassifier._ask` under either name
+  (`images` up to Pipecat 1.15, `inputs` after), so the tests pass on 1.16 and on `main`.
+  The library itself only uses the public `yes_no()` and needed no change.
+
 ## [0.3.1] - 2026-11-16
 
 Examples you can talk to, and the rest of the milestone 3 eval.

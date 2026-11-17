@@ -19,7 +19,7 @@ Try saying (English, Hindi or Hinglish):
 Setup:
     uv sync --group examples --extra jev       # or: pip install pipecat-guardrails[jev]
                                                #     "pipecat-ai[sarvam,webrtc,silero,runner]"
-    export SARVAM_API_KEY=... TYPESAFE_API_KEY=...
+    cp .env.example .env                       # then fill in SARVAM_API_KEY, TYPESAFE_API_KEY
 
 Run, then open http://localhost:7860 and click Connect:
     uv run python examples/echo_bot.py                # rules + Jev
@@ -122,6 +122,20 @@ def last_user_text(messages: list[Any]) -> str:
     return ""
 
 
+def make_speech() -> tuple[Any, Any]:
+    """Speech-to-text and text-to-speech. Replace these with any Pipecat STT and TTS."""
+    from pipecat.services.sarvam.stt import SarvamSTTService
+    from pipecat.services.sarvam.tts import SarvamTTSService
+    from pipecat.transcriptions.language import Language
+
+    stt = SarvamSTTService(api_key=os.environ["SARVAM_API_KEY"])
+    tts = SarvamTTSService(
+        api_key=os.environ["SARVAM_API_KEY"],
+        settings=SarvamTTSService.Settings(voice="shubh", language=Language.HI_IN),
+    )
+    return stt, tts
+
+
 def log_decisions(output_guard: Any) -> None:
     """Log every decision, with how long the check took."""
 
@@ -150,18 +164,11 @@ async def run_bot(transport: Any, args: argparse.Namespace, handle_sigint: bool)
         LLMContextAggregatorPair,
         LLMUserAggregatorParams,
     )
-    from pipecat.services.sarvam.stt import SarvamSTTService
-    from pipecat.services.sarvam.tts import SarvamTTSService
-    from pipecat.transcriptions.language import Language
     from pipecat.workers.runner import WorkerRunner
 
     from pipecat_guardrails.pipecat import OutputGuardProcessor, guarded_rtvi_observer_params
 
-    stt = SarvamSTTService(api_key=os.environ["SARVAM_API_KEY"])
-    tts = SarvamTTSService(
-        api_key=os.environ["SARVAM_API_KEY"],
-        settings=SarvamTTSService.Settings(voice="shubh", language=Language.HI_IN),
-    )
+    stt, tts = make_speech()
     aggregators = LLMContextAggregatorPair(
         LLMContext(), user_params=LLMUserAggregatorParams(vad_analyzer=SileroVADAnalyzer())
     )
@@ -204,9 +211,17 @@ async def bot(runner_args: Any) -> None:
     from pipecat.runner.utils import create_transport
     from pipecat.transports.base_transport import TransportParams
 
+    def eval_params() -> Any:  # what `pipecat eval run` connects to (see evals/README.md)
+        from pipecat.evals.transport import EvalTransportParams
+
+        return EvalTransportParams(audio_in_enabled=True, audio_out_enabled=True)
+
     transport = await create_transport(
         runner_args,
-        {"webrtc": lambda: TransportParams(audio_in_enabled=True, audio_out_enabled=True)},
+        {
+            "webrtc": lambda: TransportParams(audio_in_enabled=True, audio_out_enabled=True),
+            "eval": eval_params,
+        },
     )
     await run_bot(transport, runner_args.cli_args, runner_args.handle_sigint)
 

@@ -1,0 +1,11 @@
+# `pipecat eval suite evals/manifest.yaml` starts the bot, runs its scenarios, and stops it.
+# Paths are relative to this file.
+concurrency: 2
+runs_dir: ../.eval-runs
+scenarios_dir: .
+spawn: "{python} {bot} --port {port}"
+suite:
+  - bot: ../examples/echo_bot.py
+    scenarios: [echo_bot]
+  - bot: ../examples/health_bot.py
+    scenarios: [health_bot]
