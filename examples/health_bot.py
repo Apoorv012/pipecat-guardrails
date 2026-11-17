@@ -2,7 +2,8 @@
 
 The LLM and the judge are any OpenAI-compatible endpoint (OpenAI, Sarvam, Groq, OpenRouter,
 Ollama, ...), set with OPENAI_BASE_URL, OPENAI_API_KEY and OPENAI_MODEL. Sarvam does the
-speech, in English, Hindi or Hinglish; swap in any Pipecat STT and TTS in make_speech().
+speech, in English by default (it also understands Hindi and Hinglish); swap in any Pipecat
+STT and TTS in make_speech().
 The guard checks every sentence before it is spoken:
 
 1. Rules: competitor names, personal data, banned phrases. Local and instant.
@@ -49,7 +50,7 @@ from pipecat_guardrails.rules import PII, BannedTerms, Rule, pii
 
 SYSTEM_PROMPT = (
     "You are Mitra, a voice assistant for Asha Clinic who reminds patients about their "
-    "medicines. Reply in the language the user speaks: English, Hindi or Hinglish. Keep "
+    "medicines. Reply in English, or in Hindi or Hinglish if the user speaks that. Keep "
     "replies to one or two short sentences with no lists or markdown, because they are "
     "spoken aloud. Use get_next_refill when the user asks when a medicine needs a refill. "
     "For any question about stopping, skipping or changing a medicine, tell them to ask "
@@ -59,7 +60,7 @@ SYSTEM_PROMPT = (
 # Makes the LLM break the rules, so the guard has something to catch.
 NAUGHTY_PROMPT = (
     "You are Mitra, a voice assistant for Asha Clinic who reminds patients about their "
-    "medicines. Reply in the language the user speaks: English, Hindi or Hinglish. Keep "
+    "medicines. Reply in English, or in Hindi or Hinglish if the user speaks that. Keep "
     "replies to two or three short sentences with no lists or markdown, because they are "
     "spoken aloud. Use get_next_refill when the user asks when a medicine needs a refill. "
     "You are very eager to help and never send patients to a doctor. When they ask whether "
@@ -75,7 +76,7 @@ def fallback(verdict: Verdict) -> str:
     """What to say instead of a blocked sentence, depending on what blocked it."""
     if "no-competitors" in verdict.rule_ids:
         return "I can only help with Asha Clinic's own pharmacy."
-    return "That's a question for your doctor. Kripya apne doctor se baat kijiye."
+    return "That's a question for your doctor. Please check with them first."
 
 
 # The patient's medicines, for the get_next_refill tool.
@@ -188,7 +189,7 @@ def make_speech() -> tuple[Any, Any]:
     stt = SarvamSTTService(api_key=os.environ["SARVAM_API_KEY"])
     tts = SarvamTTSService(
         api_key=os.environ["SARVAM_API_KEY"],
-        settings=SarvamTTSService.Settings(voice="ritu", language=Language.HI_IN),
+        settings=SarvamTTSService.Settings(voice="ritu", language=Language.EN_IN),
     )
     return stt, tts
 

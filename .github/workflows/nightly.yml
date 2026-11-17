@@ -44,14 +44,14 @@ jobs:
     # The end-to-end evals in evals/ against Pipecat's main branch: the real voice examples,
     # with Sarvam speech, the Jev classifier and an OpenAI-compatible LLM. Skipped unless the
     # secrets SARVAM_API_KEY, TYPESAFE_API_KEY and OPENAI_API_KEY are set. OPENAI_BASE_URL
-    # and OPENAI_MODEL are repository variables (unset means OpenAI and gpt-4.1).
+    # and OPENAI_MODEL can be repository variables or secrets (unset means OpenAI, gpt-4.1).
     runs-on: ubuntu-latest
     env:
       SARVAM_API_KEY: ${{ secrets.SARVAM_API_KEY }}
       TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      OPENAI_BASE_URL: ${{ vars.OPENAI_BASE_URL }}
-      OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'gpt-4.1' }}
+      OPENAI_BASE_URL: ${{ vars.OPENAI_BASE_URL || secrets.OPENAI_BASE_URL }}
+      OPENAI_MODEL: ${{ vars.OPENAI_MODEL || secrets.OPENAI_MODEL || 'gpt-4.1' }}
       HAS_KEYS: ${{ secrets.SARVAM_API_KEY != '' && secrets.TYPESAFE_API_KEY != '' && secrets.OPENAI_API_KEY != '' }}
     steps:
       - uses: actions/checkout@v7
